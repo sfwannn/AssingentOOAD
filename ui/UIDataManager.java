@@ -276,10 +276,14 @@ public class UIDataManager {
     }
 
     public void recordPayment(String plate, double amount) {
-        recordPayment(plate, amount, 0.0, 0.0);
+        recordPayment(plate, amount, 0.0, 0.0, "Cash/Card");
     }
     
     public void recordPayment(String plate, double amount, double parkingFee, double fineAmount) {
+        recordPayment(plate, amount, parkingFee, fineAmount, "Cash/Card");
+    }
+    
+    public void recordPayment(String plate, double amount, double parkingFee, double fineAmount, String paymentMethod) {
         String norm = normalizePlate(plate);
         try (Connection conn = Database.getConnection()) {
             double currentFine = getUnpaidFine(norm);
@@ -289,7 +293,7 @@ public class UIDataManager {
             PreparedStatement paymentStmt = conn.prepareStatement("INSERT INTO payments (license_plate, amount, method, parking_fee, fine_amount) VALUES (?, ?, ?, ?, ?)");
             paymentStmt.setString(1, norm);
             paymentStmt.setDouble(2, amount);
-            paymentStmt.setString(3, "Cash/Card");
+            paymentStmt.setString(3, paymentMethod);
             paymentStmt.setDouble(4, parkingFee);
             paymentStmt.setDouble(5, fineAmount);
             paymentStmt.executeUpdate();

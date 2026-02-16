@@ -381,17 +381,20 @@ public class CustomerUI extends JFrame {
         
         boolean isOKU = dataManager.isOKUCardHolder(selectedPlate);
         boolean isVIP = dataManager.isVIPPlate(selectedPlate);
+        String okuStatus = isOKU ? "YES - Eligible for RM 2/hour discount" : "NO";
         String discountInfo = isOKU ? "\n*** OKU Card Holder: Eligible for RM 2/hour discount on all spots ***" : "";
         String vipInfo = isVIP ? "\n*** VIP Member: Can park in Reserved spots (RM 10/hour) ***" : "";
         
         switch (vehicleType) {
             case "Motorcycle":
                 return "Vehicle Type: Motorcycle\n" +
+                       "OKU Card Status: " + okuStatus + "\n" +
                        "Compatible Spots: Compact\n" +
                        "Rate: RM 2/hour\n" + 
                        discountInfo + vipInfo;
             case "Car":
                 return "Vehicle Type: Car\n" +
+                       "OKU Card Status: " + okuStatus + "\n" +
                        "Compatible Spots: Compact, Regular" +
                        (isVIP ? ", Reserved (VIP)" : "") + "\n" +
                        "Rates: Compact (RM 2/hour), Regular (RM 5/hour)" +
@@ -399,6 +402,7 @@ public class CustomerUI extends JFrame {
                        discountInfo + vipInfo;
             case "SUV/Truck":
                 return "Vehicle Type: SUV/Truck\n" +
+                       "OKU Card Status: " + okuStatus + "\n" +
                        "Compatible Spots: Regular" +
                        (isVIP ? ", Reserved (VIP)" : "") + "\n" +
                        "Rate: RM 5/hour" +
@@ -406,6 +410,7 @@ public class CustomerUI extends JFrame {
                        discountInfo + vipInfo;
             case "Handicapped Vehicle":
                 return "Vehicle Type: Handicapped Vehicle\n" +
+                       "OKU Card Status: " + okuStatus + "\n" +
                        "Compatible Spots: Compact, Regular, Handicapped" +
                        (isVIP ? ", Reserved (VIP)" : "") + "\n" +
                        "Rates: RM 2/hour (with OKU card)\n" +
@@ -458,10 +463,17 @@ public class CustomerUI extends JFrame {
     }
     
     private double getParkingRate(String spotType, String vehicleType, String plate) {
+        // CRITICAL: If vehicle is HANDICAPPED, has OKU card, AND parked in HANDICAPPED spot → FREE
+        if ("Handicapped Vehicle".equalsIgnoreCase(vehicleType) && dataManager.isOKUCardHolder(plate) && "Handicapped".equalsIgnoreCase(spotType)) {
+            return 0.0; // FREE for handicapped OKU cardholders in handicapped spots
+        }
+        
+        // If has OKU card → RM 2 for other spots
         if (dataManager.isOKUCardHolder(plate)) {
             return 2.0;
         }
 
+        // Standard rates for everyone else
         switch (spotType) {
             case "Compact":
                 return 2.0;
@@ -825,7 +837,7 @@ public class CustomerUI extends JFrame {
             lastParkingFee = parkingFee;
             lastFine = fine;
 
-            dataManager.recordPayment(norm, amountPaid, parkingFee, fine);
+            dataManager.recordPayment(norm, amountPaid, parkingFee, fine, selectedPaymentMethod);
             dataManager.removeParkedVehicle(norm);
             parkedVehicles.remove(norm);
             finesSavedThisSession.remove(norm); // Clear the fine saved flag for this vehicle

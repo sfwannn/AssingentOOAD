@@ -26,7 +26,7 @@ public class Payment {
         double rate;
 
         // FIXED LOGIC: If vehicle is handicapped, has a valid card, AND is in a handicapped spot, rate is 0
-        if ("HANDICAPPED".equalsIgnoreCase(vehicleType) && OKUCardChecker.isOKUCardHolder(licensePlate) && "Handicapped".equalsIgnoreCase(spotType)) {
+        if ("Handicapped Vehicle".equalsIgnoreCase(vehicleType) && OKUCardChecker.isOKUCardHolder(licensePlate) && "Handicapped".equalsIgnoreCase(spotType)) {
             rate = 0.0;
         } 
         // If vehicle has OKU card but is in a regular/compact/reserved spot, the rate is RM 2
