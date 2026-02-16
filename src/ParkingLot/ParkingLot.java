@@ -132,18 +132,30 @@ public class ParkingLot {
 
                 if (f <= 3) {
                     // Floors 1-3
-                    spot = switch (row) {
-                        case 1 -> posInRow <= 5 ? new ReservedSpot(f, row, s) : new HandicappedSpot(f, row, s);
-                        case 2 -> new CompactSpot(f, row, s);
-                        default -> new RegularSpot(f, row, s);
-                    };
+                    switch (row) {
+                        case 1:
+                            spot = posInRow <= 5 ? new ReservedSpot(f, row, s) : new HandicappedSpot(f, row, s);
+                            break;
+                        case 2:
+                            spot = new CompactSpot(f, row, s);
+                            break;
+                        default:
+                            spot = new RegularSpot(f, row, s);
+                            break;
+                    }
                 } else {
                     // Floors 4-5
-                    spot = switch (row) {
-                        case 1 -> new ReservedSpot(f, row, s);
-                        case 2 -> new CompactSpot(f, row, s);
-                        default -> new RegularSpot(f, row, s);
-                    };
+                    switch (row) {
+                        case 1:
+                            spot = new ReservedSpot(f, row, s);
+                            break;
+                        case 2:
+                            spot = new CompactSpot(f, row, s);
+                            break;
+                        default:
+                            spot = new RegularSpot(f, row, s);
+                            break;
+                    }
                 }
 
                 floor.addSpot(spot);
