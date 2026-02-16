@@ -25,18 +25,20 @@ public class Payment {
         // Base Parking Rates 
         double rate;
 
-        // Free if handicapped vehicle (OKU card holder) parks in handicapped spot
+        // FIXED LOGIC: If vehicle is handicapped, has a valid card, AND is in a handicapped spot, rate is 0
         if ("HANDICAPPED".equalsIgnoreCase(vehicleType) && OKUCardChecker.isOKUCardHolder(licensePlate) && "Handicapped".equalsIgnoreCase(spotType)) {
-            return fineStrategy.calculateFine(hours) + (isReservedMisuse ? 50.0 : 0.0); // Only fine, no parking fee
-        }
-        // If vehicle is handicapped and is OKU card holder, always RM 2/hour in any spot
-        if ("HANDICAPPED".equalsIgnoreCase(vehicleType) && OKUCardChecker.isOKUCardHolder(licensePlate)) {
+            rate = 0.0;
+        } 
+        // If vehicle has OKU card but is in a regular/compact/reserved spot, the rate is RM 2
+        else if (OKUCardChecker.isOKUCardHolder(licensePlate)) {
             rate = 2.0;
-        } else {
+        } 
+        // Standard rates for everyone else
+        else {
             switch (spotType) {
                 case "Compact": rate = 2.0; break;
                 case "Regular": rate = 5.0; break;
-                case "Handicapped": rate = 2.0; break; // Assumed paid unless validated card
+                case "Handicapped": rate = 2.0; break; // Paid for non-card holders
                 case "Reserved": rate = 10.0; break;
                 default: rate = 5.0;
             }
@@ -44,7 +46,7 @@ public class Payment {
 
         double parkingFee = hours * rate;
 
-        // Calculate Fines
+        // Calculate Fines from overstay strategy
         double fineAmount = fineStrategy.calculateFine(hours);
         
         // Add Misuse Fine if applicable (e.g. non-reserved car in reserved spot)
