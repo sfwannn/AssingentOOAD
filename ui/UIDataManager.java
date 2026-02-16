@@ -1,8 +1,17 @@
 import Database.Database;
+import Management.Admin;
+import Management.Customer;
 import Management.Fine;
 import Management.FixedFine;
 import Management.HourlyFine;
 import Management.ProgressiveFine;
+import Management.Payment;
+import Management.User;
+import ParkingLot.ParkingLot;
+import ParkingLot.ParkingSpot;
+import ParkingLot.Ticket;
+import Vehicles.Vehicle;
+import Vehicles.VehicleFactory;
 import java.sql.*;
 import java.util.*;
 
@@ -13,6 +22,8 @@ import java.util.*;
 public class UIDataManager {
     
     private String currentFineScheme;
+    private final ParkingLot parkingLot;
+    private final Map<String, Ticket> activeTickets = new HashMap<>();
 
     // Inner class to hold parked vehicle data
     public static class ParkedVehicleData {
@@ -33,6 +44,8 @@ public class UIDataManager {
 
     public UIDataManager() {
         this.currentFineScheme = loadFineSchemeFromDB();
+        this.parkingLot = ParkingLot.getInstance();
+        this.parkingLot.initializeDefaultStructure();
     }
 
     // Load fine scheme from database or use default
@@ -147,6 +160,121 @@ public class UIDataManager {
 
     public String getCurrentFineScheme() {
         return currentFineScheme;
+    }
+
+    public boolean isSupportedVehicleType(String vehicleType) {
+        return VehicleFactory.fromDisplayType(vehicleType, "") != null;
+    }
+
+    public User loginUserByNameAndPassword(String userName, String password) {
+        try (Connection conn = Database.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(
+                "SELECT user_id, name, password, role, license_plate FROM users WHERE name = ? AND password = ?")) {
+            pstmt.setString(1, userName);
+            pstmt.setString(2, password);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                String role = rs.getString("role");
+                String userId = rs.getString("user_id");
+                String name = rs.getString("name");
+                if ("ADMIN".equalsIgnoreCase(role)) {
+                    return new Admin(userId, name, password);
+                }
+                return new Customer(userId, name, rs.getString("license_plate"));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error authenticating user: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public int getTotalSpotCount() {
+        return parkingLot.getTotalSpotCount();
+    }
+
+    public String[] getAllowedParkingTypes(String vehicleType, String plate) {
+        Vehicle vehicle = VehicleFactory.fromDisplayType(vehicleType, plate);
+        if (vehicle == null) {
+            return new String[0];
+        }
+
+        boolean isVip = isVIPPlate(plate);
+        List<String> allowed = parkingLot.getAllowedSpotTypes(vehicle, isVip);
+        return allowed.toArray(new String[0]);
+    }
+
+    public boolean isSpotAllowedForVehicle(String spotId, String vehicleType, String plate) {
+        Vehicle vehicle = VehicleFactory.fromDisplayType(vehicleType, plate);
+        if (vehicle == null) {
+            return false;
+        }
+
+        boolean isVip = isVIPPlate(plate);
+        ParkingSpot spot = parkingLot.getSpotByUiId(spotId);
+        return parkingLot.isSpotAllowed(vehicle, spot, isVip);
+    }
+
+    public String getSpotType(String spotId) {
+        return ParkingSpot.extractType(spotId);
+    }
+
+    public int getFloorFromSpot(String spotId) {
+        return ParkingSpot.extractFloor(spotId);
+    }
+
+    public double getHourlyRate(String spotId, String vehicleType, String plate) {
+        ParkingSpot spot = parkingLot.getSpotByUiId(spotId);
+        if (spot != null) {
+            return Payment.calculateHourlyRate(spot, plate, vehicleType);
+        }
+        String spotType = ParkingSpot.extractType(spotId);
+        return Payment.calculateHourlyRate(spotType, plate, vehicleType);
+    }
+
+    public List<String[]> getSpotsForFloor(int floorNum, String selectedParkingType) {
+        List<String[]> allSpots = new ArrayList<>();
+        Set<String> occupiedSpots = getOccupiedSpotIds();
+
+        for (ParkingSpot spot : parkingLot.getSpotsForFloor(floorNum)) {
+            String type = spot.getType();
+            if (selectedParkingType != null && !selectedParkingType.isEmpty() && !type.equals(selectedParkingType)) {
+                continue;
+            }
+
+            String uiSpotId = spot.toUiSpotId();
+            String status = occupiedSpots.contains(uiSpotId) ? "Occupied" : "Available";
+            allSpots.add(new String[]{uiSpotId, type, status});
+        }
+
+        return allSpots;
+    }
+
+    public String getAvailabilitySummary(String parkingType) {
+        if (parkingType == null || parkingType.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder summary = new StringBuilder();
+        summary.append("Parking Type: ").append(parkingType).append("\n\n");
+
+        for (int floor = 1; floor <= 5; floor++) {
+            List<String[]> spots = getSpotsForFloor(floor, parkingType);
+            int totalSpots = spots.size();
+            int availableSpots = 0;
+
+            for (String[] spot : spots) {
+                if (spot[2].equals("Available")) {
+                    availableSpots++;
+                }
+            }
+
+            if (totalSpots > 0) {
+                summary.append(String.format("Floor %d: %d available / %d total\n",
+                    floor, availableSpots, totalSpots));
+            }
+        }
+
+        return summary.toString();
     }
 
     // Get the fine scheme that was active at a specific entry time
@@ -345,6 +473,10 @@ public class UIDataManager {
         } catch (SQLException e) {
             System.err.println("Error adding parked vehicle: " + e.getMessage());
         }
+
+        if (parkingSpot != null && !parkingSpot.isEmpty()) {
+            activeTickets.put(norm, new Ticket(norm, parkingSpot));
+        }
     }
 
     public void removeParkedVehicle(String plate) {
@@ -356,6 +488,25 @@ public class UIDataManager {
         } catch (SQLException e) {
             System.err.println("Error removing parked vehicle: " + e.getMessage());
         }
+        activeTickets.remove(norm);
+    }
+
+    public Ticket getTicket(String plate) {
+        if (plate == null) {
+            return null;
+        }
+        return activeTickets.get(normalizePlate(plate));
+    }
+
+    private Set<String> getOccupiedSpotIds() {
+        Set<String> occupiedSpots = new HashSet<>();
+        Map<String, ParkedVehicleData> vehicles = getParkedVehicles();
+        for (ParkedVehicleData vehicle : vehicles.values()) {
+            if (vehicle.parkingSpot != null && !vehicle.parkingSpot.isEmpty()) {
+                occupiedSpots.add(vehicle.parkingSpot);
+            }
+        }
+        return occupiedSpots;
     }
 
     public Map<String, Object> getParkedVehicleInfo(String plate) {
@@ -452,17 +603,7 @@ public class UIDataManager {
     }
     
     public boolean authenticateUser(String userName, String password) {
-        try (Connection conn = Database.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(
-                "SELECT 1 FROM users WHERE name = ? AND password = ?")) {
-            pstmt.setString(1, userName);
-            pstmt.setString(2, password);
-            ResultSet rs = pstmt.executeQuery();
-            return rs.next();
-        } catch (SQLException e) {
-            System.err.println("Error authenticating user: " + e.getMessage());
-        }
-        return false;
+        return loginUserByNameAndPassword(userName, password) != null;
     }
 
     /**

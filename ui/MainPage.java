@@ -51,6 +51,10 @@ public class MainPage extends JFrame {
             } else if (vehicleType == null || vehicleType.isEmpty() || vehicleType.equals("-- Select Vehicle --")) {
                 JOptionPane.showMessageDialog(this, "Please select a vehicle type.");
             } else {
+                if (!dataManager.isSupportedVehicleType(vehicleType)) {
+                    JOptionPane.showMessageDialog(this, "Unsupported vehicle type.");
+                    return;
+                }
                 String normalizedPlate = normalizePlate(plate);
                 
                 // Check if vehicle is already parked

@@ -29,12 +29,80 @@ public class ParkingLot {
     public List<Floor> getFloors() {
         return floors;
     }
+
+    public int getTotalSpotCount() {
+        int total = 0;
+        for (Floor floor : floors) {
+            total += floor.getSpots().size();
+        }
+        return total;
+    }
+
+    public List<ParkingSpot> getSpotsForFloor(int floorNumber) {
+        List<ParkingSpot> spots = new ArrayList<>();
+        String targetId = "Floor " + floorNumber;
+        for (Floor floor : floors) {
+            if (targetId.equalsIgnoreCase(floor.getFloorId())) {
+                spots.addAll(floor.getSpots());
+                break;
+            }
+        }
+        return spots;
+    }
     
     // Helper to get a specific spot by ID
     public ParkingSpot getSpotById(String spotId) {
         for (Floor floor : floors) {
             for (ParkingSpot spot : floor.getSpots()) {
                 if (spot.getSpotId().equals(spotId)) {
+                    return spot;
+                }
+            }
+        }
+        return null;
+    }
+
+    public ParkingSpot getSpotByUiId(String uiSpotId) {
+        String internalId = ParkingSpot.toInternalSpotId(uiSpotId);
+        return getSpotById(internalId);
+    }
+
+    public boolean isSpotAllowed(Vehicles.Vehicle vehicle, ParkingSpot spot, boolean isVip) {
+        if (vehicle == null || spot == null) {
+            return false;
+        }
+
+        String type = spot.getType();
+        if ("Reserved".equalsIgnoreCase(type)) {
+            if (!isVip) {
+                return false;
+            }
+            if (vehicle instanceof Vehicles.Motorcycle) {
+                return false;
+            }
+        }
+
+        return vehicle.canParkIn(spot);
+    }
+
+    public List<String> getAllowedSpotTypes(Vehicles.Vehicle vehicle, boolean isVip) {
+        List<String> allowed = new ArrayList<>();
+        String[] orderedTypes = {"Compact", "Regular", "Handicapped", "Reserved"};
+
+        for (String type : orderedTypes) {
+            ParkingSpot sample = getSampleSpotByType(type);
+            if (sample != null && isSpotAllowed(vehicle, sample, isVip)) {
+                allowed.add(type);
+            }
+        }
+
+        return allowed;
+    }
+
+    private ParkingSpot getSampleSpotByType(String type) {
+        for (Floor floor : floors) {
+            for (ParkingSpot spot : floor.getSpots()) {
+                if (spot.getType().equalsIgnoreCase(type)) {
                     return spot;
                 }
             }

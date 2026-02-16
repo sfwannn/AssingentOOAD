@@ -148,11 +148,11 @@ public class CustomerUI extends JFrame {
                 String durationText = formatDuration(hoursRoundedUp);
                 page5DurationLabel.setText("Duration: " + durationText);
 
-                String parkingType = extractSpotType(v.parkingSpot);
+                String parkingType = dataManager.getSpotType(v.parkingSpot);
                 page5ParkingTypeLabel.setText("Parking Type: " + parkingType);
                 page5SpotLabel.setText("Parking Spot: " + v.parkingSpot);
 
-                double rate = getParkingRate(parkingType, v.vehicleType, norm);
+                double rate = dataManager.getHourlyRate(v.parkingSpot, v.vehicleType, norm);
                 page5ParkingRateLabel.setText(String.format("Parking Rate: RM %.2f/hour", rate));
 
                 double parkingFee = rate * hoursRoundedUp;
@@ -232,7 +232,7 @@ public class CustomerUI extends JFrame {
             duration = String.format("%dh %02dm", hrs, mins);
 
             long hoursRoundedUp = Math.max(1L, (parkedMillis + 60L*60*1000 - 1) / (60L*60*1000));
-            double rate = getParkingRate(extractSpotType(spot), dv.vehicleType, norm);
+            double rate = dataManager.getHourlyRate(spot, dv.vehicleType, norm);
             parkingFee = rate * hoursRoundedUp;
 
             fine = dataManager.getUnpaidFine(norm);
@@ -291,7 +291,10 @@ public class CustomerUI extends JFrame {
         }
         
         if (parkingComboBox != null) {
-            String[] availableParkingTypes = getAvailableParkingTypes(selectedVehicleType);
+            String[] availableParkingTypes = dataManager.getAllowedParkingTypes(selectedVehicleType, selectedPlate);
+            if (availableParkingTypes.length == 0) {
+                availableParkingTypes = parkingTypes;
+            }
             parkingComboBox.removeAllItems();
             for (String type : availableParkingTypes) {
                 parkingComboBox.addItem(type);
@@ -329,7 +332,10 @@ public class CustomerUI extends JFrame {
         JPanel selectionPanel = new JPanel(new GridLayout(1, 1, 10, 20));
         selectionPanel.setBorder(new EmptyBorder(20, 50, 10, 50));
 
-        String[] availableParkingTypes = getAvailableParkingTypes(selectedVehicleType);
+        String[] availableParkingTypes = dataManager.getAllowedParkingTypes(selectedVehicleType, selectedPlate);
+        if (availableParkingTypes.length == 0) {
+            availableParkingTypes = parkingTypes;
+        }
         parkingComboBox = new JComboBox<>(availableParkingTypes);
         parkingComboBox.setBorder(BorderFactory.createTitledBorder("Select Parking Type"));
 
@@ -346,11 +352,11 @@ public class CustomerUI extends JFrame {
         
         parkingComboBox.addActionListener(e -> {
             String selectedType = (String) parkingComboBox.getSelectedItem();
-            availabilityTextArea.setText(getAvailabilitySummary(selectedType));
+            availabilityTextArea.setText(dataManager.getAvailabilitySummary(selectedType));
         });
         
         if (availableParkingTypes.length > 0) {
-            availabilityTextArea.setText(getAvailabilitySummary(availableParkingTypes[0]));
+            availabilityTextArea.setText(dataManager.getAvailabilitySummary(availableParkingTypes[0]));
         }
         
         availabilityPanel.add(availabilityTextArea, BorderLayout.CENTER);
@@ -430,73 +436,11 @@ public class CustomerUI extends JFrame {
         }
     }
 
-    private String[] getAvailableParkingTypes(String vehicleType) {
-        if (vehicleType == null || vehicleType.isEmpty()) {
-            return parkingTypes;
-        }
-
-        switch (vehicleType) {
-            case "Motorcycle":
-                return new String[]{"Compact"};
-            case "Car":
-                if (dataManager.isVIPPlate(selectedPlate)) {
-                    return new String[]{"Compact", "Regular", "Reserved"};
-                }
-                return new String[]{"Compact", "Regular"};
-            case "SUV/Truck":
-                if (dataManager.isVIPPlate(selectedPlate)) {
-                    return new String[]{"Regular", "Reserved"};
-                }
-                return new String[]{"Regular"};
-            case "Handicapped Vehicle":
-                if (dataManager.isVIPPlate(selectedPlate)) {
-                    return parkingTypes;
-                } else {
-                    return new String[]{"Compact", "Regular", "Handicapped"};
-                }
-            default:
-                return parkingTypes;
-        }
-    }
-    
-    private boolean isVIPPlate(String plate) {
-        return dataManager.isVIPPlate(plate);
-    }
-    
-    private boolean isOKUCardHolder(String plate) {
-        return dataManager.isOKUCardHolder(plate);
-    }
-
     private String normalizePlate(String plate) {
         if (plate == null) return "";
         return plate.replaceAll("\\s+", "").toUpperCase();
     }
     
-    private double getParkingRate(String spotType, String vehicleType, String plate) {
-        // CRITICAL: If vehicle is HANDICAPPED, has OKU card, AND parked in HANDICAPPED spot → FREE
-        if ("Handicapped Vehicle".equalsIgnoreCase(vehicleType) && dataManager.isOKUCardHolder(plate) && "Handicapped".equalsIgnoreCase(spotType)) {
-            return 0.0; // FREE for handicapped OKU cardholders in handicapped spots
-        }
-        
-        // If has OKU card → RM 2 for other spots
-        if (dataManager.isOKUCardHolder(plate)) {
-            return 2.0;
-        }
-
-        // Standard rates for everyone else
-        switch (spotType) {
-            case "Compact":
-                return 2.0;
-            case "Regular":
-                return 5.0;
-            case "Handicapped":
-                return 2.0;
-            case "Reserved":
-                return 10.0;
-            default:
-                return 0.0;
-        }
-    }
 
     // --- PAGE 3: Floor & Spot Selection ---
     private JPanel createPage3() {
@@ -548,14 +492,20 @@ public class CustomerUI extends JFrame {
             if (row != -1) {
                 String spotId = (String) model.getValueAt(row, 0);
                 String status = (String) model.getValueAt(row, 1);
-                String spotType = extractSpotType(spotId);
-                
+                String spotType = dataManager.getSpotType(spotId);
+
                 if (status.equals("Occupied")) {
                     JOptionPane.showMessageDialog(this, "Spot is already occupied!");
-                } else if (spotType.equals("Reserved") && !dataManager.isVIPPlate(selectedPlate)) {
-                    JOptionPane.showMessageDialog(this, 
-                        "This Reserved spot is only available for VIP customers.",
-                        "Access Denied", JOptionPane.ERROR_MESSAGE);
+                } else if (!dataManager.isSpotAllowedForVehicle(spotId, selectedVehicleType, selectedPlate)) {
+                    if (spotType.equals("Reserved") && !dataManager.isVIPPlate(selectedPlate)) {
+                        JOptionPane.showMessageDialog(this,
+                            "This Reserved spot is only available for VIP customers.",
+                            "Access Denied", JOptionPane.ERROR_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this,
+                            "This spot is not available for your vehicle type.",
+                            "Access Denied", JOptionPane.ERROR_MESSAGE);
+                    }
                 } else {
                     selectedSpotId = spotId;
                     entryTime = System.currentTimeMillis();
@@ -591,95 +541,12 @@ public class CustomerUI extends JFrame {
     private void updateSpotTable(DefaultTableModel model, String floor) {
         model.setRowCount(0);
         
-        // Refresh parked vehicles from database for accurate spot availability
-        parkedVehicles = dataManager.getParkedVehicles();
-        
         int floorNum = Integer.parseInt(floor.replace("Floor ", ""));
-        java.util.List<String[]> allSpots = getSpotsForFloor(floorNum);
-        
+        java.util.List<String[]> allSpots = dataManager.getSpotsForFloor(floorNum, selectedParkingType);
+
         for (String[] spot : allSpots) {
-            if (spot[1].equals(selectedParkingType)) {
-                model.addRow(new Object[]{spot[0], spot[2]});
-            }
+            model.addRow(new Object[]{spot[0], spot[2]});
         }
-    }
-    
-    private java.util.Set<String> getOccupiedSpots() {
-        java.util.Set<String> occupiedSpots = new java.util.HashSet<>();
-        java.util.Map<String, UIDataManager.ParkedVehicleData> parkedVehicles = dataManager.getParkedVehicles();
-        for (UIDataManager.ParkedVehicleData vehicle : parkedVehicles.values()) {
-            if (vehicle.parkingSpot != null && !vehicle.parkingSpot.isEmpty()) {
-                occupiedSpots.add(vehicle.parkingSpot);
-            }
-        }
-        return occupiedSpots;
-    }
-    
-    private java.util.List<String[]> getSpotsForFloor(int floorNum) {
-        java.util.List<String[]> allSpots = new java.util.ArrayList<>();
-        java.util.Set<String> occupiedSpots = getOccupiedSpots();
-        
-        if (floorNum <= 3) {
-            for (int i = 1; i <= 5; i++) {
-                String spotId = String.format("F%d-Reserved-R1S%02d", floorNum, i);
-                String status = occupiedSpots.contains(spotId) ? "Occupied" : "Available";
-                allSpots.add(new String[]{spotId, "Reserved", status});
-            }
-            for (int i = 6; i <= 10; i++) {
-                String spotId = String.format("F%d-Handicapped-R1S%02d", floorNum, i);
-                String status = occupiedSpots.contains(spotId) ? "Occupied" : "Available";
-                allSpots.add(new String[]{spotId, "Handicapped", status});
-            }
-        } else {
-            for (int i = 1; i <= 10; i++) {
-                String spotId = String.format("F%d-Reserved-R1S%02d", floorNum, i);
-                String status = occupiedSpots.contains(spotId) ? "Occupied" : "Available";
-                allSpots.add(new String[]{spotId, "Reserved", status});
-            }
-        }
-        
-        for (int i = 11; i <= 20; i++) {
-            String spotId = String.format("F%d-Compact-R2S%02d", floorNum, i);
-            String status = occupiedSpots.contains(spotId) ? "Occupied" : "Available";
-            allSpots.add(new String[]{spotId, "Compact", status});
-        }
-        
-        for (int i = 21; i <= 30; i++) {
-            String spotId = String.format("F%d-Regular-R3S%02d", floorNum, i);
-            String status = occupiedSpots.contains(spotId) ? "Occupied" : "Available";
-            allSpots.add(new String[]{spotId, "Regular", status});
-        }
-        
-        return allSpots;
-    }
-    
-    private String getAvailabilitySummary(String parkingType) {
-        StringBuilder summary = new StringBuilder();
-        summary.append("Parking Type: ").append(parkingType).append("\n\n");
-        
-        java.util.Set<String> occupiedSpots = getOccupiedSpots();
-        
-        for (int floor = 1; floor <= 5; floor++) {
-            java.util.List<String[]> spots = getSpotsForFloor(floor);
-            int totalSpots = 0;
-            int availableSpots = 0;
-            
-            for (String[] spot : spots) {
-                if (spot[1].equals(parkingType)) {
-                    totalSpots++;
-                    if (spot[2].equals("Available")) {
-                        availableSpots++;
-                    }
-                }
-            }
-            
-            if (totalSpots > 0) {
-                summary.append(String.format("Floor %d: %d available / %d total\n", 
-                    floor, availableSpots, totalSpots));
-            }
-        }
-        
-        return summary.toString();
     }
 
     // --- PAGE 4: Thank You ---
@@ -842,9 +709,8 @@ public class CustomerUI extends JFrame {
         double unpaidFine = dataManager.getUnpaidFine(norm);
         long now = System.currentTimeMillis();
         long parkedMillis = now - dv.entryMillis;
-        String spotType = extractSpotType(dv.parkingSpot);
         long hoursRoundedUp = Math.max(1L, (parkedMillis + 60L*60*1000 - 1) / (60L*60*1000));
-        double rate = getParkingRate(spotType, dv.vehicleType, norm);
+        double rate = dataManager.getHourlyRate(dv.parkingSpot, dv.vehicleType, norm);
         double parkingFee = rate * hoursRoundedUp;
         
         if (unpaidFine > 0) {
@@ -952,15 +818,6 @@ public class CustomerUI extends JFrame {
         panel.add(btnDone, BorderLayout.SOUTH);
 
         return panel;
-    }
-
-    private String extractSpotType(String spotId) {
-        if (spotId == null || spotId.isEmpty()) return "";
-        String[] parts = spotId.split("-");
-        if (parts.length >= 2) {
-            return parts[1];
-        }
-        return "";
     }
 
     /**

@@ -4,6 +4,8 @@ import java.sql.SQLException;
 
 public class DataInitializer {
 
+        private static final SpotType[] SPOT_TYPES = SpotType.values();
+
     public static void createDatabaseTables(Connection conn) throws SQLException {
         System.out.println("Creating database tables...");
         

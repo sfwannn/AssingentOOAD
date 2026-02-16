@@ -139,7 +139,7 @@ public class AdminUI extends JFrame {
         content.setBorder(new EmptyBorder(20, 20, 20, 20));
 
         // Calculate occupancy dynamically
-        int totalSpots = 150; // Total parking spots
+        int totalSpots = dataManager.getTotalSpotCount();
         int occupiedSpots = dataManager.getParkedVehicles().size();
         double occupancyRate = occupiedSpots > 0 ? (occupiedSpots / (double) totalSpots) * 100 : 0;
         
@@ -349,7 +349,7 @@ public class AdminUI extends JFrame {
     private void refreshDashboard() {
         // Refresh occupancy
         if (dashboardOccupancyLabel != null) {
-            int totalSpots = 150;
+            int totalSpots = dataManager.getTotalSpotCount();
             int occupiedSpots = dataManager.getParkedVehicles().size();
             double occupancyRate = occupiedSpots > 0 ? (occupiedSpots / (double) totalSpots) * 100 : 0;
             dashboardOccupancyLabel.setText("<html><center>" + String.format("Occupancy Rate: %.1f%% (%d/%d)", occupancyRate, occupiedSpots, totalSpots) + "</center></html>");
@@ -462,9 +462,10 @@ public class AdminUI extends JFrame {
             if (spotId == null || spotId.isEmpty()) continue;
             
             // Extract floor from spot ID (e.g., "F1-Reserved-R1S01" -> "1")
-            String floor = extractFloorFromSpot(spotId);
+            int floor = dataManager.getFloorFromSpot(spotId);
+            String floorLabel = "Floor " + floor;
 
-            if (selectedFloor.equals("All Floors") || selectedFloor.contains("Floor " + floor)) {
+            if (selectedFloor.equals("All Floors") || selectedFloor.contains(floorLabel)) {
                 String normPlate = normalizePlate(vehicle.plate);
                 
                 // Calculate duration
@@ -498,19 +499,6 @@ public class AdminUI extends JFrame {
         }
     }
     
-    private String extractFloorFromSpot(String spotId) {
-        // Handle different spot ID formats
-        if (spotId == null || spotId.isEmpty()) return "1";
-        
-        // Format: "F1-Reserved-R1S01" or "1-Regular-1"
-        if (spotId.startsWith("F") && spotId.length() > 1) {
-            return String.valueOf(spotId.charAt(1));
-        } else if (spotId.length() > 0 && Character.isDigit(spotId.charAt(0))) {
-            return String.valueOf(spotId.charAt(0));
-        }
-        
-        return "1";
-    }
 
     // --- PAGE 12: User Management ---
     private DefaultTableModel userTableModel;
@@ -822,11 +810,13 @@ public class AdminUI extends JFrame {
         }
         
         if (occupancy) {
+            int totalSpots = dataManager.getTotalSpotCount();
+            int occupiedSpots = dataManager.getParkedVehicles().size();
             writer.println("OCCUPANCY REPORT");
-            writer.println("Total Spots,150");
-            writer.println("Occupied Spots," + dataManager.getParkedVehicles().size());
-            writer.println("Available Spots," + (150 - dataManager.getParkedVehicles().size()));
-            writer.println("Occupancy Rate," + String.format("%.1f%%", (dataManager.getParkedVehicles().size() / 150.0) * 100));
+            writer.println("Total Spots," + totalSpots);
+            writer.println("Occupied Spots," + occupiedSpots);
+            writer.println("Available Spots," + (totalSpots - occupiedSpots));
+            writer.println("Occupancy Rate," + String.format("%.1f%%", (occupiedSpots / (double) totalSpots) * 100));
             writer.println("");
         }
         

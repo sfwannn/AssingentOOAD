@@ -59,6 +59,51 @@ public class Payment {
         return parkingFee + fineAmount;
     }
 
+    public static double calculateHourlyRate(ParkingLot.ParkingSpot spot, String licensePlate, String vehicleType) {
+        if (spot == null) {
+            return 0.0;
+        }
+
+        String spotType = spot.getType();
+
+        if ("Handicapped Vehicle".equalsIgnoreCase(vehicleType) && OKUCardChecker.isOKUCardHolder(licensePlate) && "Handicapped".equalsIgnoreCase(spotType)) {
+            return 0.0;
+        }
+
+        if (OKUCardChecker.isOKUCardHolder(licensePlate)) {
+            return 2.0;
+        }
+
+        return spot.getHourlyRate();
+    }
+
+    public static double calculateHourlyRate(String spotType, String licensePlate, String vehicleType) {
+        if (spotType == null || spotType.isEmpty()) {
+            return 0.0;
+        }
+
+        if ("Handicapped Vehicle".equalsIgnoreCase(vehicleType) && OKUCardChecker.isOKUCardHolder(licensePlate) && "Handicapped".equalsIgnoreCase(spotType)) {
+            return 0.0;
+        }
+
+        if (OKUCardChecker.isOKUCardHolder(licensePlate)) {
+            return 2.0;
+        }
+
+        switch (spotType) {
+            case "Compact":
+                return 2.0;
+            case "Regular":
+                return 5.0;
+            case "Handicapped":
+                return 2.0;
+            case "Reserved":
+                return 10.0;
+            default:
+                return 0.0;
+        }
+    }
+
     // 2. SAVE TO DATABASE
     public void processPayment(double amount, String method) {
         String sql = "INSERT INTO payments (amount, method) VALUES (?, ?)";
