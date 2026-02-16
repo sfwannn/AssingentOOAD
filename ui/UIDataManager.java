@@ -277,24 +277,6 @@ public class UIDataManager {
         return summary.toString();
     }
 
-    // Get the fine scheme that was active at a specific entry time
-    public String getFineSchemeAtTime(long entryMillis) {
-        try (Connection conn = Database.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(
-                "SELECT scheme_name FROM fine_schemes " +
-                "WHERE changed_at <= FROM_UNIXTIME(?) " +
-                "ORDER BY changed_at DESC LIMIT 1")) {
-            pstmt.setLong(1, entryMillis / 1000); // Convert milliseconds to seconds
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getString("scheme_name");
-            }
-        } catch (SQLException e) {
-            System.err.println("Error getting fine scheme at time: " + e.getMessage());
-        }
-        return "Option A (Fixed)"; // Default fallback
-    }
-
     public void setCurrentFineScheme(String scheme) {
         this.currentFineScheme = scheme;
         saveFineSchemeToDB(scheme);
