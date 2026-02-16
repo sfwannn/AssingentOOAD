@@ -44,6 +44,9 @@ public class CustomerUI extends JFrame {
     private JLabel page5ParkingRateLabel;
     private JLabel page5FineLabel;
     private JLabel page5ParkingFeeLabel;
+    
+    // Page 6 Components (to update dynamically)
+    private JComboBox<String> page6PaymentCombo;
 
     // Track selected spot for the current parking session
     private String selectedSpotId = "";
@@ -51,6 +54,9 @@ public class CustomerUI extends JFrame {
     // Page4 (Thank You) dynamic labels
     private JLabel page4EntryTimeLabel;
     private JLabel page4SpotLabel;
+    
+    // Page6 (Payment) button panel for dynamic button updating
+    private JPanel page6ButtonPanel;
     
     // Cache for receipt display - preserved after payment
     private UIDataManager.ParkedVehicleData lastReceiptData = null;
@@ -170,6 +176,10 @@ public class CustomerUI extends JFrame {
                 page5ParkingFeeLabel.setText("Parking Fee: RM 0.00");
             }
             page5FineSchemeLabel.setText("Current Fine Scheme: " + dataManager.getCurrentFineScheme());
+        }
+
+        if (cardName.equals("Page6")) {
+            updatePage6ButtonPanel();
         }
 
         if (cardName.equals("Page8")) {
@@ -776,7 +786,7 @@ public class CustomerUI extends JFrame {
         JLabel lbl = new JLabel("Pick Payment Type");
         lbl.setFont(new Font("Arial", Font.BOLD, 18));
 
-        JComboBox<String> payCombo = new JComboBox<>(paymentTypes);
+        page6PaymentCombo = new JComboBox<>(paymentTypes);
 
         JLabel qrLabel = new JLabel();
         qrLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -792,69 +802,94 @@ public class CustomerUI extends JFrame {
             qrLabel.setText("[QR Code]");
         }
         
-        payCombo.addActionListener(e -> {
-            String selected = (String) payCombo.getSelectedItem();
+        page6PaymentCombo.addActionListener(evt -> {
+            String selected = (String) page6PaymentCombo.getSelectedItem();
             qrLabel.setVisible("QR".equals(selected));
             panel.revalidate();
             panel.repaint();
         });
 
-        JButton btnPay = new JButton("Pay & Continue");
-        btnPay.addActionListener(e -> {
-            if (selectedPlate == null || selectedPlate.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "No plate selected for payment.");
-                return;
-            }
-            String norm = normalizePlate(selectedPlate);
-            if (!parkedVehicles.containsKey(norm)) {
-                JOptionPane.showMessageDialog(this, "No parking record found.");
-                return;
-            }
-
-            UIDataManager.ParkedVehicleData dv = parkedVehicles.get(norm);
-            long now = System.currentTimeMillis();
-            long parkedMillis = now - dv.entryMillis;
-            String spotType = extractSpotType(dv.parkingSpot);
-            long hoursRoundedUp = Math.max(1L, (parkedMillis + 60L*60*1000 - 1) / (60L*60*1000));
-            double rate = getParkingRate(spotType, dv.vehicleType, norm);
-            double parkingFee = rate * hoursRoundedUp;
-
-            // Recalculate auto fine fresh at payment time using current duration and entry time scheme
-            double autoFine = dataManager.calculateFineForParkingAtEntryTime(hoursRoundedUp, dv.entryMillis, dv.plate);
-            // Get manual fines (e.g., reserved spot violations) from unpaid_fines
-            double manualFine = dataManager.getUnpaidFine(norm);
-            // Total fine = auto-calculated + manual
-            double fine = autoFine + manualFine;
-            double totalDue = parkingFee + fine;
-
-            selectedPaymentMethod = (String) payCombo.getSelectedItem();
-            amountPaid = totalDue;
-            exitTimeMillis = now;
-            
-            // Cache receipt data before removing vehicle
-            lastReceiptData = dv;
-            lastExitTimeMillis = now;
-            lastParkingFee = parkingFee;
-            lastFine = fine;
-
-            dataManager.recordPayment(norm, amountPaid, parkingFee, fine, selectedPaymentMethod);
-            dataManager.removeParkedVehicle(norm);
-            parkedVehicles.remove(norm);
-            finesSavedThisSession.remove(norm); // Clear the fine saved flag for this vehicle
-
-            showCard("Page7");
-        });
+        // Button panel will be populated dynamically by updatePage6ButtonPanel()
+        page6ButtonPanel = new JPanel();
+        page6ButtonPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 5));
 
         JButton btnBack = new JButton("Back");
         btnBack.addActionListener(e -> showCard("Page5"));
 
         gbc.gridx = 0; gbc.gridy = 0; panel.add(lbl, gbc);
-        gbc.gridy = 1; panel.add(payCombo, gbc);
+        gbc.gridy = 1; panel.add(page6PaymentCombo, gbc);
         gbc.gridy = 2; panel.add(qrLabel, gbc);
-        gbc.gridy = 3; panel.add(btnPay, gbc);
+        gbc.gridy = 3; panel.add(page6ButtonPanel, gbc);
         gbc.gridy = 4; panel.add(btnBack, gbc);
 
         return panel;
+    }
+
+    // Update Page6 button panel based on whether vehicle has unpaid fine
+    private void updatePage6ButtonPanel() {
+        if (page6ButtonPanel == null) return;
+        
+        page6ButtonPanel.removeAll();
+        
+        String norm = normalizePlate(selectedPlate);
+        parkedVehicles = dataManager.getParkedVehicles();
+        
+        if (!parkedVehicles.containsKey(norm)) {
+            return;
+        }
+        
+        UIDataManager.ParkedVehicleData dv = parkedVehicles.get(norm);
+        double unpaidFine = dataManager.getUnpaidFine(norm);
+        long now = System.currentTimeMillis();
+        long parkedMillis = now - dv.entryMillis;
+        String spotType = extractSpotType(dv.parkingSpot);
+        long hoursRoundedUp = Math.max(1L, (parkedMillis + 60L*60*1000 - 1) / (60L*60*1000));
+        double rate = getParkingRate(spotType, dv.vehicleType, norm);
+        double parkingFee = rate * hoursRoundedUp;
+        
+        if (unpaidFine > 0) {
+            // Vehicle has unpaid fine - show both options
+            JButton btnParkingOnly = new JButton("Pay Parking Fee Only");
+            btnParkingOnly.addActionListener(e -> processPayment(dv, norm, parkingFee, 0.0));
+            
+            JButton btnParkingAndFine = new JButton("Pay Parking Fee + Fine");
+            btnParkingAndFine.addActionListener(e -> processPayment(dv, norm, parkingFee, unpaidFine));
+            
+            page6ButtonPanel.add(btnParkingOnly);
+            page6ButtonPanel.add(btnParkingAndFine);
+        } else {
+            // No unpaid fine - show only parking fee button
+            JButton btnParkingFee = new JButton("Pay Parking Fee");
+            btnParkingFee.addActionListener(e -> processPayment(dv, norm, parkingFee, 0.0));
+            
+            page6ButtonPanel.add(btnParkingFee);
+        }
+        
+        page6ButtonPanel.revalidate();
+        page6ButtonPanel.repaint();
+    }
+
+    // Process payment with selected amount (parking only or parking+fine)
+    private void processPayment(UIDataManager.ParkedVehicleData dv, String norm, double parkingFee, double fineToInclude) {
+        long now = System.currentTimeMillis();
+        double amountToPay = parkingFee + fineToInclude;
+
+        selectedPaymentMethod = (String) page6PaymentCombo.getSelectedItem();
+        amountPaid = amountToPay;
+        exitTimeMillis = now;
+        
+        // Cache receipt data before removing vehicle
+        lastReceiptData = dv;
+        lastExitTimeMillis = now;
+        lastParkingFee = parkingFee;
+        lastFine = fineToInclude;
+
+        dataManager.recordPayment(norm, amountToPay, parkingFee, fineToInclude, selectedPaymentMethod);
+        dataManager.removeParkedVehicle(norm);
+        parkedVehicles.remove(norm);
+        finesSavedThisSession.remove(norm);
+
+        showCard("Page7");
     }
 
     // --- PAGE 7: Exit/Receipt Question ---

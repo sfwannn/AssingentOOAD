@@ -480,11 +480,6 @@ public class UIDataManager {
         Fine fineStrategy = getFineStrategyByName(schemeAtEntry);
         double fine = fineStrategy.calculateFine(hoursParked);
 
-        // Check if the vehicle has an OKU card (uses the `oku_card_holders` table)
-        if (isOKUCardHolder(plate)) {
-            fine = Math.max(0, fine - 2); // Subtract RM2, but ensure it doesn't go below zero
-        }
-
         return fine;
     }
 
