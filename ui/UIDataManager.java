@@ -287,7 +287,7 @@ public class UIDataManager {
         String norm = normalizePlate(plate);
         try (Connection conn = Database.getConnection()) {
             double currentFine = getUnpaidFine(norm);
-            double remaining = Math.max(0.0, currentFine - amount);
+            double remaining = Math.max(0.0, currentFine - fineAmount);
             
             // Insert into payments table with full details
             PreparedStatement paymentStmt = conn.prepareStatement("INSERT INTO payments (license_plate, amount, method, parking_fee, fine_amount) VALUES (?, ?, ?, ?, ?)");

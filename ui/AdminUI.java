@@ -307,7 +307,7 @@ public class AdminUI extends JFrame {
         );
 
         if (choice >= 0) {
-            double fineAmount = 75.0;
+            double fineAmount = 100.0;
             String offenseType = "Reserved Spot Without Reservation";
 
             String normPlate = normalizePlate(plateNo);

@@ -25,15 +25,15 @@ public class Payment {
         // Base Parking Rates 
         double rate;
 
-        // FIXED LOGIC: If vehicle is handicapped, has a valid card, AND is in a handicapped spot, rate is 0
+        // CHECK: If vehicle is handicapped, has a valid card, AND is in a handicapped spot, rate is 0
         if ("Handicapped Vehicle".equalsIgnoreCase(vehicleType) && OKUCardChecker.isOKUCardHolder(licensePlate) && "Handicapped".equalsIgnoreCase(spotType)) {
             rate = 0.0;
         } 
-        // If vehicle has OKU card but is in a regular/compact/reserved spot, the rate is RM 2
+        // CHECK: If vehicle has OKU card but is in a regular/compact/reserved spot, the rate is RM 2
         else if (OKUCardChecker.isOKUCardHolder(licensePlate)) {
             rate = 2.0;
         } 
-        // Standard rates for everyone else
+        // CHECK: Standard rates for vehicles without OKU card
         else {
             switch (spotType) {
                 case "Compact": rate = 2.0; break;
@@ -54,6 +54,8 @@ public class Payment {
             fineAmount += 50.0; // Flat penalty for misuse
         }
 
+        // FIX: Ensure the total is the sum of Parking Fee + Full Fine. 
+        // No discount is applied to the fine amount based on the rate or OKU status.
         return parkingFee + fineAmount;
     }
 
