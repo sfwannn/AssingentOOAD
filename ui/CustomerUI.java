@@ -401,6 +401,7 @@ public class CustomerUI extends JFrame {
         String okuStatus = isOKU ? "YES - Eligible for RM 2/hour discount" : "NO";
         String discountInfo = isOKU ? "\n*** OKU Card Holder: Eligible for RM 2/hour discount on all spots ***" : "";
         String vipInfo = isVIP ? "\n*** VIP Member: Can park in Reserved spots (RM 10/hour) ***" : "";
+        String okuRegistrationNote = "\n\nNote: Please email the admin if you are a holder of an OKU card\nto be eligible for a discount.";
         
         switch (vehicleType) {
             case "Motorcycle":
@@ -408,7 +409,7 @@ public class CustomerUI extends JFrame {
                        "OKU Card Status: " + okuStatus + "\n" +
                        "Compatible Spots: Compact\n" +
                        "Rate: RM 2/hour\n" + 
-                       discountInfo + vipInfo;
+                       discountInfo + vipInfo + okuRegistrationNote;
             case "Car":
                 return "Vehicle Type: Car\n" +
                        "OKU Card Status: " + okuStatus + "\n" +
@@ -416,7 +417,7 @@ public class CustomerUI extends JFrame {
                        (isVIP ? ", Reserved (VIP)" : "") + "\n" +
                        "Rates: Compact (RM 2/hour), Regular (RM 5/hour)" +
                        (isVIP ? ", Reserved (RM 10/hour)" : "") +
-                       discountInfo + vipInfo;
+                       discountInfo + vipInfo + okuRegistrationNote;
             case "SUV/Truck":
                 return "Vehicle Type: SUV/Truck\n" +
                        "OKU Card Status: " + okuStatus + "\n" +
@@ -424,14 +425,14 @@ public class CustomerUI extends JFrame {
                        (isVIP ? ", Reserved (VIP)" : "") + "\n" +
                        "Rate: RM 5/hour" +
                        (isVIP ? ", Reserved (RM 10/hour)" : "") +
-                       discountInfo + vipInfo;
+                       discountInfo + vipInfo + okuRegistrationNote;
             case "Handicapped Vehicle":
                 return "Vehicle Type: Handicapped Vehicle\n" +
                        "OKU Card Status: " + okuStatus + "\n" +
                        "Compatible Spots: Compact, Regular, Handicapped" +
                        (isVIP ? ", Reserved (VIP)" : "") + "\n" +
                        "Rates: RM 2/hour (with OKU card)\n" +
-                       discountInfo + vipInfo;
+                       discountInfo + vipInfo + okuRegistrationNote;
             default:
                 return "Please select a vehicle type.";
         }

@@ -4,6 +4,7 @@ import java.util.Map;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
+import Database.Database;
 
 public class AdminUI extends JFrame {
 
@@ -1013,12 +1014,10 @@ public class AdminUI extends JFrame {
             writer.println("");
             writer.println("License Plate,Unpaid Fine Amount");
             
-            Map<String, UIDataManager.ParkedVehicleData> parkedVehicles = dataManager.getParkedVehicles();
-            for (UIDataManager.ParkedVehicleData vehicle : parkedVehicles.values()) {
-                double fine = dataManager.getUnpaidFine(vehicle.plate);
-                if (fine > 0) {
-                    writer.println(vehicle.plate + ",RM " + String.format("%.2f", fine));
-                }
+            // Get all unpaid fines from database (including vehicles not currently parked)
+            java.util.Map<String, Double> allUnpaidFines = getAllUnpaidFinesFromDatabase();
+            for (java.util.Map.Entry<String, Double> entry : allUnpaidFines.entrySet()) {
+                writer.println(entry.getKey() + ",RM " + String.format("%.2f", entry.getValue()));
             }
         }
         
@@ -1028,5 +1027,28 @@ public class AdminUI extends JFrame {
     private String normalizePlate(String plate) {
         if (plate == null) return "";
         return plate.replaceAll("\\s+", "").toUpperCase();
+    }
+
+    private java.util.Map<String, Double> getAllUnpaidFinesFromDatabase() {
+        java.util.Map<String, Double> unpaidFines = new java.util.TreeMap<>();
+        try (java.sql.Connection conn = Database.getConnection()) {
+            if (conn != null) {
+                java.sql.Statement stmt = conn.createStatement();
+                java.sql.ResultSet rs = stmt.executeQuery("SELECT license_plate, amount FROM unpaid_fines ORDER BY license_plate");
+                
+                while (rs.next()) {
+                    String plate = rs.getString("license_plate");
+                    double amount = rs.getDouble("amount");
+                    unpaidFines.put(plate, amount);
+                }
+                
+                rs.close();
+                stmt.close();
+            }
+        } catch (Exception e) {
+            System.err.println("Error retrieving unpaid fines from database: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return unpaidFines;
     }
 }
