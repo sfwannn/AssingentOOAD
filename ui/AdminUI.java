@@ -1,4 +1,5 @@
 import java.awt.*;
+import java.util.Calendar;
 import java.util.Map;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -46,6 +47,7 @@ public class AdminUI extends JFrame {
         mainPanel.add(createPage13(), "Page13");
         mainPanel.add(createPage14(), "Page14");
         mainPanel.add(createPage15(), "Page15");
+        mainPanel.add(createPage16(), "Page16");
 
         applyGlobalButtonSizing(mainPanel);
 
@@ -163,7 +165,7 @@ public class AdminUI extends JFrame {
         content.add(dashboardOutstandingFinesLabel);
         
         JButton btnReport = new JButton("Download Report");
-        btnReport.addActionListener(e -> showCard("Page15"));
+        btnReport.addActionListener(e -> showCard("Page16"));
         content.add(btnReport);
 
         panel.add(content, BorderLayout.CENTER);
@@ -700,7 +702,191 @@ public class AdminUI extends JFrame {
     }
 
     // --- PAGE 15: Download Report ---
+    // --- PAGE 15: Test Fine Calculator ---
     private JPanel createPage15() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(createAdminSidebar(), BorderLayout.WEST);
+
+        JPanel content = new JPanel(new GridBagLayout());
+        content.setBorder(new EmptyBorder(20, 20, 20, 20));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Title
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        JLabel titleLabel = new JLabel("Test Fine Calculator - Manual Exit Time");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        content.add(titleLabel, gbc);
+
+        // Vehicle selection
+        gbc.gridy++; gbc.gridwidth = 1;
+        content.add(new JLabel("Select Parked Vehicle:"), gbc);
+        
+        gbc.gridx = 1;
+        Map<String, UIDataManager.ParkedVehicleData> parkedVehicles = dataManager.getParkedVehicles();
+        String[] vehiclePlates = parkedVehicles.keySet().toArray(new String[0]);
+        JComboBox<String> vehicleCombo = new JComboBox<>(vehiclePlates);
+        vehicleCombo.setPreferredSize(new Dimension(200, 25));
+        content.add(vehicleCombo, gbc);
+
+        // Entry time display
+        gbc.gridx = 0; gbc.gridy++;
+        content.add(new JLabel("Entry Time:"), gbc);
+        
+        gbc.gridx = 1;
+        JLabel entryTimeLabel = new JLabel("-");
+        entryTimeLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        content.add(entryTimeLabel, gbc);
+
+        // Manual exit time inputs
+        gbc.gridx = 0; gbc.gridy++;
+        content.add(new JLabel("Manual Exit Time:"), gbc);
+
+        JPanel dateTimePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        
+        // Year
+        dateTimePanel.add(new JLabel("Year:"));
+        JTextField yearField = new JTextField("2026", 4);
+        dateTimePanel.add(yearField);
+        
+        // Month
+        dateTimePanel.add(new JLabel("Month:"));
+        JComboBox<String> monthCombo = new JComboBox<>(new String[]{"01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"});
+        monthCombo.setSelectedItem("02");
+        dateTimePanel.add(monthCombo);
+        
+        // Day
+        dateTimePanel.add(new JLabel("Day:"));
+        JComboBox<String> dayCombo = new JComboBox<>();
+        for (int i = 1; i <= 31; i++) {
+            dayCombo.addItem(String.format("%02d", i));
+        }
+        dayCombo.setSelectedItem("17");
+        dateTimePanel.add(dayCombo);
+        
+        // Hour
+        dateTimePanel.add(new JLabel("Hour:"));
+        JComboBox<String> hourCombo = new JComboBox<>();
+        for (int i = 0; i <= 23; i++) {
+            hourCombo.addItem(String.format("%02d", i));
+        }
+        dateTimePanel.add(hourCombo);
+        
+        // Minute
+        dateTimePanel.add(new JLabel("Min:"));
+        JComboBox<String> minCombo = new JComboBox<>();
+        for (int i = 0; i <= 59; i++) {
+            minCombo.addItem(String.format("%02d", i));
+        }
+        dateTimePanel.add(minCombo);
+        
+        gbc.gridx = 1;
+        content.add(dateTimePanel, gbc);
+
+        // Results area
+        gbc.gridx = 0; gbc.gridy++; gbc.gridwidth = 2;
+        JTextArea resultArea = new JTextArea(8, 50);
+        resultArea.setEditable(false);
+        resultArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        resultArea.setBorder(BorderFactory.createTitledBorder("Calculation Results"));
+        JScrollPane scrollPane = new JScrollPane(resultArea);
+        content.add(scrollPane, gbc);
+
+        // Calculate button
+        gbc.gridy++;
+        JButton calculateBtn = new JButton("Calculate Fine");
+        calculateBtn.setFont(new Font("Arial", Font.BOLD, 14));
+        calculateBtn.addActionListener(e -> {
+            if (vehiclePlates.length == 0) {
+                resultArea.setText("No parked vehicles available.");
+                return;
+            }
+            
+            String selectedPlate = (String) vehicleCombo.getSelectedItem();
+            UIDataManager.ParkedVehicleData vehicleData = parkedVehicles.get(selectedPlate);
+            
+            try {
+                // Parse manual exit time
+                int year = Integer.parseInt(yearField.getText());
+                int month = Integer.parseInt((String) monthCombo.getSelectedItem()) - 1; // Calendar months are 0-based
+                int day = Integer.parseInt((String) dayCombo.getSelectedItem());
+                int hour = Integer.parseInt((String) hourCombo.getSelectedItem());
+                int minute = Integer.parseInt((String) minCombo.getSelectedItem());
+                
+                Calendar exitCal = Calendar.getInstance();
+                exitCal.set(year, month, day, hour, minute, 0);
+                exitCal.set(Calendar.MILLISECOND, 0);
+                long exitMillis = exitCal.getTimeInMillis();
+                
+                // Get entry time
+                long entryMillis = vehicleData.entryMillis;
+                
+                if (exitMillis <= entryMillis) {
+                    resultArea.setText("Error: Exit time must be after entry time!");
+                    return;
+                }
+                
+                // Calculate parking duration and charges
+                double durationHours = (exitMillis - entryMillis) / (1000.0 * 60 * 60);
+                double ceilingHours = Math.ceil(durationHours);
+                double hourlyRate = dataManager.getHourlyRate(vehicleData.parkingSpot, vehicleData.vehicleType, selectedPlate);
+                double parkingCharge = ceilingHours * hourlyRate;
+                
+                // Get fine scheme at entry time
+                String schemeAtEntry = dataManager.getFineSchemeAtTime(entryMillis);
+                long hoursParked = (long) ceilingHours;
+                double fineAtEntry = dataManager.calculateFineForParkingAtEntryTime(hoursParked, entryMillis, selectedPlate);
+                
+                // Format output
+                StringBuilder output = new StringBuilder();
+                output.append("=== Fine Calculation Test ===").append("\n\n");
+                output.append("Vehicle: ").append(selectedPlate).append("\n");
+                output.append("Entry Time: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(entryMillis))).append("\n");
+                output.append("Manual Exit Time: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(exitMillis))).append("\n");
+                output.append("Duration: ").append(String.format("%.2f", durationHours)).append(" hours (Ceiling: ").append((int)ceilingHours).append(" hours)").append("\n");
+                output.append("Parking Charge: RM ").append(String.format("%.2f", parkingCharge)).append("\n\n");
+                output.append("--- Fine Scheme at Entry Time ---").append("\n");
+                output.append("Scheme: ").append(schemeAtEntry).append("\n");
+                output.append("Fine Amount: RM ").append(String.format("%.2f", fineAtEntry)).append("\n\n");
+                output.append("Note: The system uses the fine scheme active at ENTRY TIME.");
+                
+                resultArea.setText(output.toString());
+                
+            } catch (Exception ex) {
+                resultArea.setText("Error: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        });
+        content.add(calculateBtn, gbc);
+
+        // Update entry time when vehicle selection changes
+        vehicleCombo.addActionListener(e -> {
+            String selectedPlate = (String) vehicleCombo.getSelectedItem();
+            if (selectedPlate != null) {
+                UIDataManager.ParkedVehicleData vehicleData = parkedVehicles.get(selectedPlate);
+                if (vehicleData != null) {
+                    String entryTimeStr = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(vehicleData.entryMillis));
+                    entryTimeLabel.setText(entryTimeStr);
+                }
+            }
+        });
+        
+        // Initialize with first vehicle if available
+        if (vehiclePlates.length > 0) {
+            vehicleCombo.setSelectedIndex(0);
+            UIDataManager.ParkedVehicleData firstVehicle = parkedVehicles.get(vehiclePlates[0]);
+            String entryTimeStr = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(firstVehicle.entryMillis));
+            entryTimeLabel.setText(entryTimeStr);
+        }
+
+        panel.add(content, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // --- PAGE 16: Download Report ---
+    private JPanel createPage16() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.add(createAdminSidebar(), BorderLayout.WEST);
 
@@ -753,12 +939,12 @@ public class AdminUI extends JFrame {
 
     // --- Shared Admin Sidebar ---
     private JPanel createAdminSidebar() {
-        JPanel sidebar = new JPanel(new GridLayout(5, 1, 5, 5));
+        JPanel sidebar = new JPanel(new GridLayout(6, 1, 5, 5));
         sidebar.setPreferredSize(new Dimension(150, 0));
         sidebar.setBorder(BorderFactory.createLineBorder(Color.GRAY));
 
-        String[] labels = {"Dashboard", "Parking Management", "User Management", "Fine Management", "Logout"};
-        String[] pages = {"Page10", "Page11", "Page12", "Page14", "Page9"};
+        String[] labels = {"Dashboard", "Parking Management", "User Management", "Fine Management", "Test Fine Calculator", "Logout"};
+        String[] pages = {"Page10", "Page11", "Page12", "Page14", "Page15", "Page9"};
 
         for (int i=0; i<labels.length; i++) {
             String page = pages[i];

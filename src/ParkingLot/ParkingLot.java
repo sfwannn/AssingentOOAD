@@ -128,40 +128,38 @@ public class ParkingLot {
             for (int s = 1; s <= 30; s++) {
                 int row = ((s - 1) / 10) + 1; // 1..3
                 int posInRow = ((s - 1) % 10) + 1; // 1..10
-                ParkingSpot spot;
-
-                if (f <= 3) {
-                    // Floors 1-3
-                    switch (row) {
-                        case 1:
-                            spot = posInRow <= 5 ? new ReservedSpot(f, row, s) : new HandicappedSpot(f, row, s);
-                            break;
-                        case 2:
-                            spot = new CompactSpot(f, row, s);
-                            break;
-                        default:
-                            spot = new RegularSpot(f, row, s);
-                            break;
-                    }
-                } else {
-                    // Floors 4-5
-                    switch (row) {
-                        case 1:
-                            spot = new ReservedSpot(f, row, s);
-                            break;
-                        case 2:
-                            spot = new CompactSpot(f, row, s);
-                            break;
-                        default:
-                            spot = new RegularSpot(f, row, s);
-                            break;
-                    }
-                }
-
+                
+                ParkingSpot spot = createSpotForLocation(f, row, posInRow, s);
                 floor.addSpot(spot);
             }
 
             this.addFloor(floor);
+        }
+    }
+
+    private ParkingSpot createSpotForLocation(int floor, int row, int posInRow, int spotNumber) {
+        if (floor <= 3) {
+            // Floors 1-3
+            if (row == 1) {
+                if (posInRow <= 5) {
+                    return new ReservedSpot(floor, row, spotNumber);
+                } else {
+                    return new HandicappedSpot(floor, row, spotNumber);
+                }
+            } else if (row == 2) {
+                return new CompactSpot(floor, row, spotNumber);
+            } else {
+                return new RegularSpot(floor, row, spotNumber);
+            }
+        } else {
+            // Floors 4-5
+            if (row == 1) {
+                return new ReservedSpot(floor, row, spotNumber);
+            } else if (row == 2) {
+                return new CompactSpot(floor, row, spotNumber);
+            } else {
+                return new RegularSpot(floor, row, spotNumber);
+            }
         }
     }
 }
